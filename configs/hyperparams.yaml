@@ -1,0 +1,35 @@
+project:
+  name: "REM_Reproduction"
+  seed: 42
+  device: "cpu"  # Đổi tạm thành cpu để test cho dễ, sau này có gpu đổi lại sau
+
+dataset:
+  name: "Celegans"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  edges_file: "celegans_genetic_multiplex.edges"
+  nodes_file: "celegans_genetic_nodes.txt"
+  
+  # Cấu hình tạo dữ liệu mô phỏng
+  num_samples_train: 50    # Để 50 chạy cho nhanh, khi train thật tăng lên 1000
+  seed_set_size: 50
+  mc_simulations: 20       # Giảm xuống 20 để test nhanh
+  propagation_prob: 0.1
+
+model:
+  latent_dim: 64
+  hidden_dim: 128
+  num_experts: 4
+  dropout: 0.2
+
+train:
+  batch_size: 32
+  lr_vae: 0.001
+  lr_pmoe: 0.0005
+  kl_weight: 0.55
+  epochs: 50
+  exploration_steps: 100
+
+inference:
+  steps: 100         # Số bước gradient ascent (Algorithm 2, dòng 3) [cite: 514]
+  lr_z: 0.1          # Tốc độ học của latent vector

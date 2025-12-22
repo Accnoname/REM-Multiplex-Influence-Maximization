@@ -1,0 +1,16 @@
+# Core Scientific Libraries
+numpy
+networkx
+pandas
+tqdm
+pyyaml
+
+# Deep Learning Framework (Cài bản CPU cho nhẹ, nếu có GPU thì cài bản CUDA sau)
+torch
+torch-geometric
+#torch-scatter
+#torch-sparse
+
+# Visualization (Optional)
+matplotlib
+tensorboard
