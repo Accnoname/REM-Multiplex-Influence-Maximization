@@ -57,8 +57,15 @@ def local_search(seeds, graph_list, max_swaps=3):
     return result
 
 
-def robust_inference(budget_k=50, num_restarts=3, steps=60, config_path="configs/hyperparams.yaml"):
-    """REM Algorithm 2: latent-space gradient ascent + local search."""
+def robust_inference(budget_k=50, num_restarts=3, steps=60, config_path="configs/hyperparams.yaml",
+                     enable_local_search=True, skip_optimization=False, disable_pmoe=False):
+    """REM Algorithm 2: latent-space gradient ascent + local search.
+    
+    Supports ablation:
+        enable_local_search (bool): Toggles 1-hop boundary refinement.
+        skip_optimization (bool): Disables gradient ascent (evaluates raw decoded random z).
+        disable_pmoe (bool): Disables surrogate guidance (optimizes latent z purely for budget constraint).
+    """
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
@@ -79,7 +86,6 @@ def robust_inference(budget_k=50, num_restarts=3, steps=60, config_path="configs
         if os.path.exists(ckpt):
             try:
                 sd = torch.load(ckpt, map_location=device)
-                # Remap legacy key names (enc1/dec1 → enc.0/dec.0) if needed
                 remap = {
                     "enc1.weight": "enc.0.weight", "enc1.bias": "enc.0.bias",
                     "enc2.weight": "enc.3.weight", "enc2.bias": "enc.3.bias",
@@ -93,14 +99,13 @@ def robust_inference(budget_k=50, num_restarts=3, steps=60, config_path="configs
             except Exception as e:
                 log.warning(f"{name} checkpoint mismatch: {e}")
 
-
     vae.eval(); pmoe.eval()
 
     inf_cfg = cfg.get("inference", {})
     lr_z = inf_cfg.get("lr_z", 0.2)
     lam = inf_cfg.get("budget_penalty", 0.5)
 
-    log.info(f"Inference | k={budget_k} | restarts={num_restarts} | steps={steps}")
+    log.info(f"Inference | k={budget_k} | restarts={num_restarts} | steps={steps} | local_search={enable_local_search} | skip_opt={skip_optimization} | disable_pmoe={disable_pmoe}")
 
     best_score, best_seeds, prev_seeds = -float("inf"), [], None
 
@@ -109,32 +114,43 @@ def robust_inference(budget_k=50, num_restarts=3, steps=60, config_path="configs
         random.seed(i * 100 + budget_k)
 
         z = torch.randn(1, cfg["model"]["latent_dim"], device=device, requires_grad=True)
-        opt = optim.Adam([z], lr=lr_z)
-        sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps, eta_min=0.01)
 
-        run_best_score, run_best_x = -float("inf"), None
+        if skip_optimization:
+            # Ablation: directly decode random z without gradient ascent
+            with torch.no_grad():
+                x_hat = vae.decode(z)
+                run_best_score, run_best_x = 0.0, x_hat.detach().clone()
+        else:
+            opt = optim.Adam([z], lr=lr_z)
+            sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps, eta_min=0.01)
+            run_best_score, run_best_x = -float("inf"), None
 
-        for _ in range(steps):
-            opt.zero_grad()
-            x_hat = vae.decode(z)
-            data = Batch.from_data_list([Data(x=x_hat.view(-1, 1), edge_index=edge_index)]).to(device)
-            spread = pmoe(data).sum()
+            for _ in range(steps):
+                opt.zero_grad()
+                x_hat = vae.decode(z)
+                
+                if disable_pmoe:
+                    spread = torch.tensor(0.0, device=device)
+                else:
+                    data = Batch.from_data_list([Data(x=x_hat.view(-1, 1), edge_index=edge_index)]).to(device)
+                    spread = pmoe(data).sum()
 
-            budget_loss = ((x_hat.sum() - budget_k) / max(1, budget_k)) ** 2
-            eps = 1e-7
-            entropy = -torch.mean(
-                x_hat * torch.log(x_hat + eps) + (1 - x_hat) * torch.log(1 - x_hat + eps)
-            )
-            (-spread + lam * budget_k * budget_loss + 0.1 * entropy).backward()
-            opt.step(); sched.step()
+                budget_loss = ((x_hat.sum() - budget_k) / max(1, budget_k)) ** 2
+                eps = 1e-7
+                entropy = -torch.mean(
+                    x_hat * torch.log(x_hat + eps) + (1 - x_hat) * torch.log(1 - x_hat + eps)
+                )
+                (-spread + lam * budget_k * budget_loss + 0.1 * entropy).backward()
+                opt.step(); sched.step()
 
-            score = spread.item() - budget_loss.item()
-            if score > run_best_score:
-                run_best_score, run_best_x = score, x_hat.detach().clone()
+                score = spread.item() - budget_loss.item()
+                if score > run_best_score:
+                    run_best_score, run_best_x = score, x_hat.detach().clone()
 
         with torch.no_grad():
             _, idx = torch.topk(run_best_x.squeeze(), k=budget_k)
-            seeds = local_search(idx.cpu().numpy().tolist(), graph_list)
+            raw_seeds = idx.cpu().numpy().tolist()
+            seeds = local_search(raw_seeds, graph_list) if enable_local_search else raw_seeds
 
         diff = f"Changed {len(set(seeds)-set(prev_seeds))} nodes" if prev_seeds else ""
         log.info(f"Run {i+1:02d}: score={run_best_score:.2f} {diff}")

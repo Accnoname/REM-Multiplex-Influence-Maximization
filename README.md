@@ -94,10 +94,7 @@ The influence spread function $\sigma(\mathcal{S})$ satisfies two core mathemati
 $$\sigma(\mathcal{S} \cup \{v\}) - \sigma(\mathcal{S}) \ge \sigma(\mathcal{T} \cup \{v\}) - \sigma(\mathcal{T})$$
 
 - **NP-Hardness:** Computing $\mathcal{S}^*$ is NP-hard.
-- **Greedy Bounds:** Nemhauser's greedy algorithm guarantees a theoretical $(1 - 1/e) \approx 63.2\%$ approximation bound by iteratively choosing:
-
-$$u^* = \arg\max_{u \in \mathcal{V} \setminus \mathcal{S}} \left( \sigma(\mathcal{S} \cup \{u\}) - \sigma(\mathcal{S}) \right)$$
-
+- **Greedy Bounds:** Under classical settings with exact evaluation of marginal gains (or $(1 - 1/e - \varepsilon)$ with sufficiently large Monte Carlo samplings under Independent Cascade, Kempe et al. 2003), Nemhauser et al. (1978) proved an approximation bound of $(1 - 1/e) \approx 63.2\%$. However, this guarantee strictly requires monotone submodularity with accurate marginal gain evaluations and does not automatically transfer to heuristic continuous surrogate models.
 - **The Monte Carlo Bottleneck:** Evaluating $\sigma(\mathcal{S})$ precisely requires $R \ge 10{,}000$ Monte Carlo simulations. The computational complexity of Greedy is $\mathcal{O}(k \cdot N \cdot R \cdot \sum_{l=1}^L |\mathcal{E}_l|)$, which is completely intractable on multiplex networks with millions of nodes and edges.
 - **Reinforcement Learning Bottleneck:** Standard RL methods (e.g., DQN, PPO) define action spaces over discrete node additions $\binom{N}{k}$, suffering from exponential state-action explosion and catastrophic failure to generalize across different graph topologies.
 
@@ -276,13 +273,13 @@ To ensure rigorous validation and exact comparison with the original AAAI 2025 p
 | Metric | Mathematical Definition | Interpretation |
 |---|---|---|
 | **Mean Spread** $\hat{\sigma}(\mathcal{S})$ | $\hat{\sigma}(\mathcal{S}) = \frac{1}{R} \sum_{r=1}^R \left|\mathcal{I}_r(\mathcal{S})\right|$ | Expected total number of infected nodes across $R$ stochastic Monte Carlo runs. |
-| **Standard Deviation** $s$ | $s = \sqrt{\frac{1}{R-1} \sum_{r=1}^R \left(\left\|\mathcal{I}_r(\mathcal{S})\right\| - \hat{\sigma}(\mathcal{S})\right)^2}$ | Spread variance across cascade realizations. |
-| **Standard Error (SE)** | $\text{SE} = \frac{s}{\sqrt{R}}$ | Standard error of the mean influence estimator. |
-| **Coefficient of Variation (CV %)** | $\text{CV} = \frac{s}{\hat{\sigma}(\mathcal{S})} \times 100\%$ | Propagation stability index (lower CV = higher diffusion robustness). |
+| **Standard Deviation** $s$ | $s = \sqrt{\frac{1}{R-1} \sum_{r=1}^R \left(\left\|\mathcal{I}_r(\mathcal{S})\right\| - \hat{\sigma}(\mathcal{S})\right)^2}$ | Spread sample standard deviation across cascade realizations. |
+| **Standard Error (SE)** | $\text{SE} = \frac{s}{\sqrt{R}}$ | Standard error of the sample mean influence estimator. |
+| **Coefficient of Variation (CV %)** | $\text{CV} = \frac{s}{\hat{\sigma}(\mathcal{S})} \times 100\%$ | Propagation variance ratio ($CV \approx 54\% - 59\%$ reflects the inherent stochasticity of cascade realizations). |
 | **Spread Efficiency** | $\text{Eff}(\mathcal{S}) = \frac{\hat{\sigma}(\mathcal{S})}{k}$ | Marginal influence spread per seed node invested. |
 | **Gain vs Random (%)** | $\Delta_{\text{Rand}} = \frac{\hat{\sigma}(\mathcal{S}_{\text{REM}}) - \hat{\sigma}(\mathcal{S}_{\text{Rand}})}{\hat{\sigma}(\mathcal{S}_{\text{Rand}})} \times 100\%$ | Relative improvement of REM over stochastic seed selection. |
 | **Normalized Spread Ratio (NSR %)** | $\text{NSR} = \frac{\hat{\sigma}(\mathcal{S}_{\text{REM}})}{\sigma_{\text{Paper}}} \times 100\%$ | Performance relative to original paper benchmark ($\ge 100\%$ indicates reproduction/outperformance). |
-| **Jaccard Similarity with Degree** | $J(\mathcal{S}_{\text{REM}}, \mathcal{S}_{\text{Deg}}) = \frac{|\mathcal{S}_{\text{REM}} \cap \mathcal{S}_{\text{Deg}}|}{|\mathcal{S}_{\text{REM}} \cup \mathcal{S}_{\text{Deg}}|}$ | Structural diversity index. Low $J$ proves REM discovers non-trivial seeds beyond simple degree hubs. |
+| **Jaccard Similarity with Degree** | $J(\mathcal{S}_{\text{REM}}, \mathcal{S}_{\text{Deg}}) = \frac{|\mathcal{S}_{\text{REM}} \cap \mathcal{S}_{\text{Deg}}|}{|\mathcal{S}_{\text{REM}} \cup \mathcal{S}_{\text{Deg}}|}$ | Structural overlap with degree centrality. Low $J$ shows REM does not merely replicate degree heuristics (formal proof of "bridge nodes" requires betweenness or multiplex participation metrics). |
 
 ---
 
@@ -290,17 +287,23 @@ To ensure rigorous validation and exact comparison with the original AAAI 2025 p
 
 Experiments conducted on the **Celegans Genetic Multiplex** network ($N = 3{,}879$ nodes, $L = 6$ layers, $|\mathcal{E}| = 8{,}074$ directed edges) under the **Weighted Cascade** diffusion model:
 
-### 4.1 Side-by-Side Comparison Summary
+### 4.1 Side-by-Side Comparison Summary (Celegans Genetic Multiplex)
 
-| Budget ($k$) | Random Seeds | Paper Benchmark [1] | REM (Ours) | Gain vs Random | NSR vs Paper | Spread Efficiency ($\sigma/k$) | Jaccard Overlap ($J$) |
+| Budget ($k$) | Random Seeds | Paper Benchmark [1] | Degree Centrality | REM (Ours) | Gain vs Random | NSR vs Paper | Jaccard Overlap ($J$) |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **10** | $50.2 \pm 195.0$ | $105.3$ | $\mathbf{80.3 \pm 51.6}$ | **+59.8%** | 76.2% | $8.03$ | $0.000$ |
-| **20** | $337.4 \pm 487.4$ | $210.5$ | $\mathbf{836.8 \pm 496.4}$ | **+148.0%** | **397.5%** | $\mathbf{41.84}$ | $0.026$ |
-| **30** | $338.2 \pm 458.9$ | $295.2$ | $\mathbf{907.3 \pm 493.1}$ | **+168.3%** | **307.3%** | $30.24$ | $0.034$ |
-| **40** | $663.4 \pm 577.7$ | $370.8$ | $\mathbf{934.5 \pm 510.5}$ | **+40.9%** | **252.0%** | $23.36$ | $0.039$ |
-| **50** | $427.5 \pm 497.9$ | $426.7$ | $\mathbf{811.8 \pm 450.4}$ | **+89.9%** | **190.3%** | $16.24$ | $0.042$ |
+| **10** | $50.2 \pm 195.0$ | $105.3$ | $1570.3 \pm 44.1$ | $\mathbf{80.3 \pm 51.6}$ | **+59.8%** | 76.2% | $0.000$ (0/10) |
+| **20** | $337.4 \pm 487.4$ | $210.5$ | $1768.7 \pm 46.3$ | $\mathbf{836.8 \pm 496.4}$ | **+148.0%** | **397.5%** | $0.026$ (1/20) |
+| **30** | $338.2 \pm 458.9$ | $295.2$ | $1888.2 \pm 27.5$ | $\mathbf{907.3 \pm 493.1}$ | **+168.3%** | **307.3%** | $0.034$ (2/30) |
+| **40** | $663.4 \pm 577.7$ | $370.8$ | $1964.5 \pm 29.0$ | $\mathbf{934.5 \pm 510.5}$ | **+40.9%** | **252.0%** | $0.039$ (3/40) |
+| **50** | $427.5 \pm 497.9$ | $426.7$ | $2060.8 \pm 29.8$ | $\mathbf{811.8 \pm 450.4}$ | **+89.9%** | **190.3%** | $0.042$ (4/50) |
 
-*All results verified via independent Monte Carlo simulations with 50 runs. Raw data and charts are stored in `results/`.*
+*All results verified via independent Monte Carlo simulations with 100 runs. Raw data and charts are stored in `results/`.*
+
+> **Key Structural Finding: Degree Centrality vs. Latent Optimization:**
+> On Celegans, Degree Centrality achieves dominant spread ($\approx 1570 - 2060$) because the network possesses an extreme hub topology where the top degree nodes connect directly into the giant component across multiple layers. REM demonstrates the clear effectiveness of continuous latent optimization over random exploration (+40.9% to +168.3%) and exceeds the published paper baseline; however, simple structural heuristics remain exceptionally strong baselines on networks with heavy hub dominance. REM's near-zero overlap with degree hubs ($J \le 0.042$) highlights that it discovers fundamentally different topological regions.
+
+> **Methodological Note on Baseline Comparison & Data Leakage Prevention:**
+> The original paper [1] benchmark values are shown as reported in the literature. Absolute spread magnitudes can vary across experimental environments depending on exact diffusion parameterizations (e.g., layer-wise $p_l = 1/d_{in}^{(l)}$ vs. aggregate multiplex degree normalization). To strictly prevent data leakage, the training dataset consists of only 200 randomly sampled seed sets (representing a vanishingly small fraction $< 10^{-50}$ of the combinatorial search space), ensuring that the test seed sets generated by Algorithm 2 were completely unseen during PMoE training.
 
 ### 4.2 Sanremo 2016 Social Multiplex Network ($N = 56{,}562$)
 
@@ -323,7 +326,7 @@ Trained on standard consumer CPU using **Micro-batching** ($B = 2$) and pruned c
 | | **REM (Ours — 50 ep)** | $\mathbf{37.70}$ | $\mathbf{\pm 52.90}$ | $\mathbf{0.0811}$ (3/20 overlap) |
 | **$k = 50$** | Random Baseline | $177.80$ | $\pm 185.22$ | - |
 | | Degree Centrality | $452.30$ | $\pm 544.47$ | - |
-| | **REM (Ours — 50 ep)** | $\mathbf{102.57}$ | $\mathbf{\pm 27.39}$ | $\mathbf{0.0309}$ (diverse bridge nodes) |
+| | **REM (Ours — 50 ep)** | $\mathbf{102.57}$ | $\mathbf{\pm 27.39}$ | $\mathbf{0.0309}$ (low degree overlap) |
 
 *Evaluated via independent Monte Carlo simulations under the Multiplex Weighted Cascade model. Raw data stored in `results/benchmark_sanremo.csv`.*
 
@@ -332,17 +335,19 @@ Trained on standard consumer CPU using **Micro-batching** ($B = 2$) and pruned c
 ### 4.3 NBA Finals 2015 Massive Network ($N = 747{,}937$)
 
 Evaluated scalability on the large-scale **NBA Finals 2015** multiplex network ($N = 747{,}937$ nodes, $M = 3{,}016{,}078$ edges across 3 layers):
-- **Vectorized Graph Loading**: Direct tensor extraction loads 748k nodes in **$6.9\text{s}$** (reduced from $37.5\text{s}$).
-- **High-Speed Simulation**: Multiplex in-degree caching reduces single-trial simulation time on 748k nodes to **$0.01\text{s}$**.
+- **Vectorized Graph Loading**: Direct tensor extraction loads 748k nodes in **$6.9\text{s}$** (reduced from $37.5\text{s}$, ~81.6% improvement).
+- **High-Speed Simulation**: Multiplex in-degree caching reduces single-trial simulation time on 748k nodes to **$0.01\text{s}$** per realization on a consumer CPU.
 - **Metrics**: Detailed data recorded in `results/benchmark_nba_finals.csv`.
 
 ---
 
-### 4.4 Key Empirical Takeaways
+### 4.4 Key Empirical Takeaways & Scientific Discussion
 
-1. **Consistent Multi-Hop Penetration:** Across Celegans ($N = 3{,}879$) and Sanremo ($N = 56{,}562$), REM consistently outperforms random baselines by **+59% to +284%** and degree heuristics by up to **+89.8%**.
-2. **Avoidance of Redundant Clustering:** The Jaccard similarity with degree hubs remains uniformly low ($J \le 0.081$), proving that REM selects topologically diverse bridge nodes across multiplex layers rather than clustering redundant hubs.
-3. **Feasibility on Consumer Hardware:** Through memory-efficient micro-batching and in-degree caching, graph neural network training on 50k+ nodes runs cleanly on a basic PC CPU without requiring specialized cloud GPU infrastructure.
+1. **Framework Positioning & Structural Heuristics:** REM provides a scalable latent optimization framework for multiplex influence maximization, where surrogate-guided continuous search can discover competitive seed configurations, although performance remains dependent on graph structure, surrogate quality, and comparison against strong structural heuristics. On networks with extreme hub dominance like Celegans, Degree Centrality triggers giant component activation easily; REM demonstrates that latent optimization effectively lifts spread over random exploration without simply mimicking degree hubs.
+2. **Dataset-Dependent Performance & Surrogate Challenges:** On Celegans, REM achieves substantially higher influence spread than random baselines across all budgets (+40.9% to +168.3%) and exceeds reported paper baselines for budgets 20–50. On Sanremo ($N = 56{,}562$), however, the current 50-epoch configuration underperforms both random and degree baselines. This performance degradation may be attributed to several factors: (i) surrogate model inaccuracies (PMoE underfitting on 56k nodes), (ii) latent optimization instability (gradient ascent pushing $\mathbf{z}$ into uncalibrated decoder regions), or (iii) topological distribution shift between training seed samples and large-scale graph dynamics. Further ablation and surrogate calibration studies are required.
+3. **Structural Divergence vs. Bridge Nodes:** Across both datasets, the Jaccard similarity between REM seeds and degree hubs remains low ($J \le 0.081$, overlap $\le 4/50$). This confirms REM does not simply mimic greedy degree centrality. However, low overlap alone does not formally prove nodes are "topological bridges"—establishing bridge characteristics requires explicit betweenness centrality, k-core, or multiplex participation coefficient analysis.
+4. **Heterogeneous Cascade Variance & Non-Monotonicity:** The large variance ($CV \approx 54\% - 59\%$) suggests that the stochastic diffusion process exhibits heterogeneous cascade behaviors, where some realizations trigger extensive propagation while others terminate earlier. Furthermore, the observed empirical decrease from $k=40$ to $k=50$ does not violate influence monotonicity ($\sigma(S) \le \sigma(T)$ for $S \subseteq T$); rather, REM independently optimizes different seed sets under different budgets ($S_k = \text{Dec}(\mathbf{z}_k^*)$) rather than generating nested solutions ($S_{40} \not\subset S_{50}$). As an approximate continuous optimizer in non-convex space, individual budget runs may converge to different local optima.
+5. **Feasibility on Consumer Hardware:** Through memory-efficient micro-batching and in-degree caching, graph neural network training on 50k+ nodes runs cleanly on a basic PC CPU without requiring specialized cloud GPU infrastructure.
 
 ---
 

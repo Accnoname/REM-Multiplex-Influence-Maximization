@@ -1,0 +1,7 @@
+Component / Variant,Mean Spread,Std Dev,Delta vs Full REM (%)
+Full REM,74.60,+/- 29.46,Reference (0.0%)
+w/o Local Search,55.60,+/- 16.99,-25.5%
+w/o PMoE Guidance,55.60,+/- 16.99,-25.5%
+w/o Latent Ascent (Random z),15.60,+/- 2.33,-79.1%
+Degree Centrality,1565.20,+/- 47.47,+1998.1%
+Random Seeds,35.40,+/- 10.35,-52.5%
