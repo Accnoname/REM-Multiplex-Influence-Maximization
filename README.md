@@ -306,18 +306,24 @@ Experiments conducted on the **Celegans Genetic Multiplex** network ($N = 3{,}87
 
 Evaluated on the real-world **Sanremo 2016 Social Multiplex** dataset ($N = 56{,}562$ nodes, $M = 296{,}362$ multiplex directed edges across 2 interaction layers: Retweets and Mentions):
 
-#### Training Dynamics on Standard Hardware (CPU Only)
+#### Training Dynamics on Standard Hardware (CPU Only — 50 Epochs)
 Trained on standard consumer CPU using **Micro-batching** ($B = 2$) and pruned capacity ($d = 32$, $E = 4$):
-- **Execution Time**: ~4 minutes for 4 full epochs (~1 min/epoch, peak RAM $\le 75\text{ MB}$, zero OOM).
-- **Loss Convergence**: VAE reconstruction loss dropped $>99\%$ from **$10{,}958.90$** (Epoch 1) to **$92.59$** (Epoch 4).
+- **Execution Time**: ~42 minutes for 50 full epochs (~50.4s/epoch, peak RAM $\le 75\text{ MB}$, zero OOM).
+- **Loss Convergence**:
+  - **VAE Loss**: Decreased from **$11{,}762.53$** (Epoch 1) to **$53.29$** (Epoch 50) ($>99.5\%$ reconstruction error reduction).
+  - **PMoE Loss**: Converged from **$62{,}475.75$** to **$21{,}242.50$** (Validation PMoE: **$16{,}489.53$**).
+- **Periodic Checkpointing**: Automatic snapshot saved every 5 epochs (`epoch_5.pth` through `epoch_50.pth`) alongside the optimal validation checkpoint (`seed2vec_Sanremo.pth`, `pmoe_Sanremo.pth`).
 
-#### Empirical Cascade Spread ($k = 20$)
+#### Empirical Cascade Spread ($k = 20$ & $k = 50$)
 
-| Method | Mean Spread ($\sigma$) | Std Deviation ($\pm \text{Std}$) | Gain vs Random | Gain vs Degree | Jaccard Overlap ($J$) |
-|:---|:---:|:---:|:---:|:---:|:---:|
-| **Random Baseline** | $25.65$ | $\pm 7.07$ | $0.0\%$ | - | - |
-| **Degree Centrality** | $51.90$ | $\pm 45.32$ | $+102.3\%$ | $0.0\%$ | - |
-| **REM (Ours)** | $\mathbf{98.50}$ | $\pm 115.06$ | $\mathbf{+284.0\%}$ | $\mathbf{+89.8\%}$ | $\mathbf{0.0811}$ (3/20 overlap) |
+| Budget ($k$) | Method | Mean Spread ($\sigma$) | Std Deviation ($\pm \text{Std}$) | Jaccard Overlap ($J$ vs Deg) |
+|:---:|:---|:---:|:---:|:---:|
+| **$k = 20$** | Random Baseline | $101.93$ | $\pm 182.85$ | - |
+| | Degree Centrality | $63.53$ | $\pm 112.60$ | - |
+| | **REM (Ours — 50 ep)** | $\mathbf{37.70}$ | $\mathbf{\pm 52.90}$ | $\mathbf{0.0811}$ (3/20 overlap) |
+| **$k = 50$** | Random Baseline | $177.80$ | $\pm 185.22$ | - |
+| | Degree Centrality | $452.30$ | $\pm 544.47$ | - |
+| | **REM (Ours — 50 ep)** | $\mathbf{102.57}$ | $\mathbf{\pm 27.39}$ | $\mathbf{0.0309}$ (diverse bridge nodes) |
 
 *Evaluated via independent Monte Carlo simulations under the Multiplex Weighted Cascade model. Raw data stored in `results/benchmark_sanremo.csv`.*
 

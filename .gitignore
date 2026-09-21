@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.DS_Store
 
+# Intermediate epoch checkpoints (keep best model checkpoints tracked)
+checkpoints/*_epoch_*.pth
+
 # 2. Virtual environment
 venv/
 env/

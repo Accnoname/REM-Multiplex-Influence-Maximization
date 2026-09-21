@@ -27,7 +27,8 @@ train:
   lr_vae: 0.003
   lr_pmoe: 0.001
   kl_weight: 0.55
-  epochs: 4
+  epochs: 50
+  save_every: 5
   exploration_steps: 20
 
 inference:

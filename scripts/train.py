@@ -6,7 +6,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torch_geometric.data import Data, Batch
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -19,7 +19,7 @@ log = logging.getLogger("REM")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
-def train(config_path="configs/hyperparams.yaml", override_epochs=None):
+def train(config_path="configs/hyperparams.yaml", override_epochs=None, save_every=None):
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
@@ -61,6 +61,7 @@ def train(config_path="configs/hyperparams.yaml", override_epochs=None):
     opt_pmoe = optim.Adam(pmoe.parameters(), lr=cfg["train"]["lr_pmoe"])
     kl_w = cfg["train"]["kl_weight"]
     epochs = override_epochs if override_epochs is not None else cfg["train"]["epochs"]
+    save_freq = save_every if save_every is not None else cfg.get("train", {}).get("save_every", 5)
 
     v_ckpt = "checkpoints/seed2vec.pth" if dataset_name == "Celegans" else f"checkpoints/seed2vec_{dataset_name}.pth"
     p_ckpt = "checkpoints/pmoe.pth" if dataset_name == "Celegans" else f"checkpoints/pmoe_{dataset_name}.pth"
@@ -75,7 +76,13 @@ def train(config_path="configs/hyperparams.yaml", override_epochs=None):
         vae.train(); pmoe.train()
         train_vae_loss = train_pmoe_loss = 0.0
 
-        for x, y in train_loader:
+        train_pbar = tqdm(
+            train_loader,
+            desc=f"Epoch [{epoch+1:02d}/{epochs:02d}] Train",
+            leave=False,
+            dynamic_ncols=True
+        )
+        for x, y in train_pbar:
             x, y = x.to(device), y.to(device)
 
             # VAE step
@@ -99,8 +106,15 @@ def train(config_path="configs/hyperparams.yaml", override_epochs=None):
             pmoe_loss.backward()
             opt_pmoe.step()
 
-            train_vae_loss += vae_loss.item()
-            train_pmoe_loss += pmoe_loss.item()
+            v_loss = vae_loss.item()
+            p_loss = pmoe_loss.item()
+            train_vae_loss += v_loss
+            train_pmoe_loss += p_loss
+
+            train_pbar.set_postfix({
+                "vae_loss": f"{v_loss:.2f}",
+                "pmoe_loss": f"{p_loss:.2f}"
+            })
 
         train_vae_avg = train_vae_loss / train_len if train_len > 0 else 0.0
         train_pmoe_avg = train_pmoe_loss / len(train_loader) if len(train_loader) > 0 else 0.0
@@ -110,13 +124,20 @@ def train(config_path="configs/hyperparams.yaml", override_epochs=None):
         if val_loader is not None:
             vae.eval(); pmoe.eval()
             val_vae_loss = val_pmoe_loss = 0.0
+            val_pbar = tqdm(
+                val_loader,
+                desc=f"Epoch [{epoch+1:02d}/{epochs:02d}] Val",
+                leave=False,
+                dynamic_ncols=True
+            )
             with torch.no_grad():
-                for x, y in val_loader:
+                for x, y in val_pbar:
                     x, y = x.to(device), y.to(device)
                     recon, mu, logvar = vae(x)
                     mse = torch.nn.functional.mse_loss(recon, x, reduction="sum")
                     kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-                    val_vae_loss += (mse + kl_w * kld).item()
+                    v_loss = (mse + kl_w * kld).item()
+                    val_vae_loss += v_loss
 
                     batch_data = Batch.from_data_list([
                         Data(x=x[i].unsqueeze(-1), edge_index=edge_index)
@@ -124,7 +145,13 @@ def train(config_path="configs/hyperparams.yaml", override_epochs=None):
                     ]).to(device)
                     pred = pmoe(batch_data).sum(dim=1).squeeze()
                     target = y.sum(dim=1) if y.dim() > 1 else y
-                    val_pmoe_loss += torch.nn.functional.mse_loss(pred, target.float()).item()
+                    p_loss = torch.nn.functional.mse_loss(pred, target.float()).item()
+                    val_pmoe_loss += p_loss
+
+                    val_pbar.set_postfix({
+                        "val_vae": f"{v_loss:.2f}",
+                        "val_pmoe": f"{p_loss:.2f}"
+                    })
 
             val_vae_avg = val_vae_loss / val_len
             val_pmoe_avg = val_pmoe_loss / len(val_loader)
@@ -139,6 +166,14 @@ def train(config_path="configs/hyperparams.yaml", override_epochs=None):
             torch.save(vae.state_dict(), v_ckpt)
             torch.save(pmoe.state_dict(), p_ckpt)
             status_msg = "--> [BEST MODEL SAVED]"
+
+        if save_freq > 0 and (epoch + 1) % save_freq == 0:
+            v_ep_ckpt = v_ckpt.replace(".pth", f"_epoch_{epoch+1}.pth")
+            p_ep_ckpt = p_ckpt.replace(".pth", f"_epoch_{epoch+1}.pth")
+            torch.save(vae.state_dict(), v_ep_ckpt)
+            torch.save(pmoe.state_dict(), p_ep_ckpt)
+            ep_tag = f"[CHECKPOINT EP {epoch+1} SAVED]"
+            status_msg = f"{status_msg} & {ep_tag}".strip() if status_msg else f"--> {ep_tag}"
 
         if val_loader is not None:
             log.info(
@@ -162,5 +197,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/hyperparams.yaml", help="Path to config YAML")
     ap.add_argument("--epochs", type=int, default=None, help="Override number of epochs")
+    ap.add_argument("--save-every", type=int, default=None, help="Save checkpoint every N epochs (default: 5)")
     args = ap.parse_args()
-    train(config_path=args.config, override_epochs=args.epochs)
+    train(config_path=args.config, override_epochs=args.epochs, save_every=args.save_every)
