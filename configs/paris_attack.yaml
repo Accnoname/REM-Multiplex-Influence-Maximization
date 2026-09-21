@@ -1,0 +1,35 @@
+project:
+  name: "REM_ParisAttack"
+  seed: 42
+  device: "cuda"
+
+dataset:
+  name: "ParisAttack2015"
+  raw_dir: "data/raw/paris_attack"
+  processed_dir: "data/processed/paris_attack"
+  edges_file: "paris_attack_multiplex.edges"
+  nodes_file: "paris_attack_nodes.txt"
+
+  num_samples_train: 100
+  seed_set_size: 50
+  mc_simulations: 20
+  model: "WC"
+
+model:
+  latent_dim: 64
+  hidden_dim: 128
+  num_experts: 8
+  dropout: 0.2
+  entropy_coeff: 0.1
+
+train:
+  batch_size: 32
+  lr_vae: 0.003
+  lr_pmoe: 0.001
+  kl_weight: 0.55
+  epochs: 10
+
+inference:
+  steps: 60
+  lr_z: 0.2
+  budget_penalty: 0.5

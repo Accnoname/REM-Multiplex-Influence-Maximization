@@ -1,0 +1,36 @@
+project:
+  name: "REM_NBAFinals"
+  seed: 42
+  device: "cuda"
+
+dataset:
+  name: "NBAFinals"
+  raw_dir: "data/raw/nba_finals/NBAFINALS2015_Multiplex_Social/Dataset"
+  processed_dir: "data/processed/nba_finals"
+  edges_file: "NBAFINALS2015_multiplex.edges"
+  nodes_file: "NBAFINALS2015_nodes.txt"
+  
+  num_samples_train: 20
+  seed_set_size: 50
+  mc_simulations: 10
+  model: "WC"
+
+model:
+  latent_dim: 32
+  hidden_dim: 64
+  num_experts: 4
+  dropout: 0.2
+  entropy_coeff: 0.1
+
+train:
+  batch_size: 4
+  lr_vae: 0.003
+  lr_pmoe: 0.001
+  kl_weight: 0.55
+  epochs: 5
+  exploration_steps: 20
+
+inference:
+  steps: 40
+  lr_z: 0.2
+  budget_penalty: 0.5
