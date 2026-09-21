@@ -68,9 +68,13 @@ def robust_inference(budget_k=50, num_restarts=3, steps=60, config_path="configs
     vae = Seed2Vec(num_nodes, cfg["model"]["latent_dim"], cfg["model"]["hidden_dim"]).to(device)
     pmoe = PMoE(num_nodes, cfg["model"]["num_experts"], hidden_dim=cfg["model"]["hidden_dim"]).to(device)
 
+    dataset_name = cfg["dataset"].get("name", "Celegans")
+    v_ckpt = f"checkpoints/seed2vec_{dataset_name}.pth" if os.path.exists(f"checkpoints/seed2vec_{dataset_name}.pth") else "checkpoints/seed2vec.pth"
+    p_ckpt = f"checkpoints/pmoe_{dataset_name}.pth" if os.path.exists(f"checkpoints/pmoe_{dataset_name}.pth") else "checkpoints/pmoe.pth"
+
     for ckpt, model, name in [
-        ("checkpoints/seed2vec.pth", vae, "Seed2Vec"),
-        ("checkpoints/pmoe.pth", pmoe, "PMoE"),
+        (v_ckpt, vae, "Seed2Vec"),
+        (p_ckpt, pmoe, "PMoE"),
     ]:
         if os.path.exists(ckpt):
             try:

@@ -18,17 +18,23 @@ log = logging.getLogger("REM")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
-def train():
-    with open("configs/hyperparams.yaml", "r", encoding="utf-8") as f:
+def train(config_path="configs/hyperparams.yaml"):
+    with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    log.info(f"Device: {device}")
+    dataset_name = cfg["dataset"].get("name", "dataset")
+    log.info(f"Training [{dataset_name}] on device: {device}")
 
     num_nodes, edge_index, _ = load_graph(cfg, device)
     log.info(f"Graph: {num_nodes} nodes, {edge_index.size(1)} unified edges")
 
     data_path = os.path.join(cfg["dataset"]["processed_dir"], "augmented_data.SG")
+    if not os.path.exists(data_path):
+        data_path = os.path.join(cfg["dataset"]["processed_dir"], "train_data.SG")
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"No training data found in {cfg['dataset']['processed_dir']}. Run preprocess.py first.")
+
     dataset = REMDataset(data_path)
     loader = DataLoader(dataset, batch_size=cfg["train"]["batch_size"], shuffle=True)
 
@@ -39,6 +45,9 @@ def train():
     opt_pmoe = optim.Adam(pmoe.parameters(), lr=cfg["train"]["lr_pmoe"])
     kl_w = cfg["train"]["kl_weight"]
     epochs = cfg["train"]["epochs"]
+
+    v_ckpt = "checkpoints/seed2vec.pth" if dataset_name == "Celegans" else f"checkpoints/seed2vec_{dataset_name}.pth"
+    p_ckpt = "checkpoints/pmoe.pth" if dataset_name == "Celegans" else f"checkpoints/pmoe_{dataset_name}.pth"
 
     for epoch in range(epochs):
         vae.train(); pmoe.train()
@@ -71,16 +80,20 @@ def train():
             total_vae += vae_loss.item()
             total_pmoe += pmoe_loss.item()
 
-        log.info(f"Epoch {epoch+1} | VAE: {total_vae/len(dataset):.4f} | PMoE: {total_pmoe/len(loader):.4f}")
+        log.info(f"Epoch {epoch+1}/{epochs} | VAE Loss: {total_vae/len(dataset):.4f} | PMoE Loss: {total_pmoe/len(loader):.4f}")
 
         if (epoch + 1) % 2 == 0 or (epoch + 1) == epochs:
             os.makedirs("checkpoints", exist_ok=True)
-            torch.save(vae.state_dict(), "checkpoints/seed2vec.pth")
-            torch.save(pmoe.state_dict(), "checkpoints/pmoe.pth")
-            log.info(f"Checkpoint saved (epoch {epoch+1})")
+            torch.save(vae.state_dict(), v_ckpt)
+            torch.save(pmoe.state_dict(), p_ckpt)
+            log.info(f"Saved {v_ckpt} and {p_ckpt}")
 
-    log.info("Training done.")
+    log.info(f"Training completed for {dataset_name}.")
 
 
 if __name__ == "__main__":
-    train()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--config", default="configs/hyperparams.yaml", help="Path to config YAML")
+    args = ap.parse_args()
+    train(config_path=args.config)
