@@ -140,9 +140,9 @@ Instead of optimizing over the discrete hypercube $\{0, 1\}^N$, REM establishes 
 #### 1. Probabilistic Encoder $q_\phi(\mathbf{z} \mid \mathbf{x})$:
 Maps a sparse binary seed configuration $\mathbf{x}$ to a multivariate Gaussian posterior:
 
-$$q_\phi(\mathbf{z} \mid \mathbf{x}) = \mathcal{N}\left( \mathbf{z}; \; \boldsymbol{\mu}_\phi(\mathbf{x}), \; \operatorname{diag}\left(\boldsymbol{\sigma}_\phi^2(\mathbf{x})\right) \right)$$
+$$q_\phi(\mathbf{z} \mid \mathbf{x}) = \mathcal{N}\left( \mathbf{z}; \; \boldsymbol{\mu}_\phi(\mathbf{x}), \; \text{diag}\left(\boldsymbol{\sigma}_\phi^2(\mathbf{x})\right) \right)$$
 
-$$\mathbf{h}_{enc} = \operatorname{LeakyReLU}\left(\mathbf{W}_{e2} \operatorname{LeakyReLU}(\mathbf{W}_{e1} \mathbf{x} + \mathbf{b}_{e1}) + \mathbf{b}_{e2}\right)$$
+$$\mathbf{h}_{enc} = \text{LeakyReLU}\left(\mathbf{W}_{e2} \text{LeakyReLU}(\mathbf{W}_{e1} \mathbf{x} + \mathbf{b}_{e1}) + \mathbf{b}_{e2}\right)$$
 
 $$\boldsymbol{\mu}_\phi(\mathbf{x}) = \mathbf{W}_\mu \mathbf{h}_{enc} + \mathbf{b}_\mu, \quad \log \boldsymbol{\sigma}_\phi^2(\mathbf{x}) = \mathbf{W}_\sigma \mathbf{h}_{enc} + \mathbf{b}_\sigma$$
 
@@ -154,9 +154,9 @@ $$\mathbf{z} = \boldsymbol{\mu}_\phi(\mathbf{x}) + \boldsymbol{\epsilon} \odot \
 #### 3. Generative Decoder $p_\theta(\mathbf{x} \mid \mathbf{z})$:
 Reconstructs the continuous relaxation vector $\hat{\mathbf{x}} \in (0, 1)^N$:
 
-$$\mathbf{h}_{dec} = \operatorname{LeakyReLU}\left(\mathbf{W}_{d2} \operatorname{LeakyReLU}(\mathbf{W}_{d1} \mathbf{z} + \mathbf{b}_{d1}) + \mathbf{b}_{d2}\right)$$
+$$\mathbf{h}_{dec} = \text{LeakyReLU}\left(\mathbf{W}_{d2} \text{LeakyReLU}(\mathbf{W}_{d1} \mathbf{z} + \mathbf{b}_{d1}) + \mathbf{b}_{d2}\right)$$
 
-$$\hat{\mathbf{x}} = \operatorname{Dec}_\theta(\mathbf{z}) = \operatorname{Sigmoid}(\mathbf{W}_{out} \mathbf{h}_{dec} + \mathbf{b}_{out})$$
+$$\hat{\mathbf{x}} = \text{Dec}_\theta(\mathbf{z}) = \text{Sigmoid}(\mathbf{W}_{out} \mathbf{h}_{dec} + \mathbf{b}_{out})$$
 
 #### 4. Evidence Lower Bound (ELBO) Loss:
 Seed2Vec is trained by minimizing the negative ELBO:
@@ -178,7 +178,7 @@ $$D_{\text{KL}}\left( q_\phi(\mathbf{z} \mid \mathbf{x}) \;\middle\|\; \mathcal{
 
 Evaluating $\sigma(\mathcal{S})$ through Monte Carlo simulations in every optimization step is impossible. REM introduces **PMoE** as a fast, differentiable surrogate propagation function:
 
-$$\hat{\mathbf{y}} = \operatorname{PMoE}(\hat{\mathbf{x}}) \in [0, 1]^N$$
+$$\hat{\mathbf{y}} = \text{PMoE}(\hat{\mathbf{x}}) \in [0, 1]^N$$
 
 where $\hat{y}_i$ is the predicted probability that node $v_i$ is infected upon diffusion termination.
 
@@ -190,14 +190,14 @@ Real multiplex cascades exhibit heterogeneous transmission depths across layers.
 
 For node $i$ and neighbor $j \in \mathcal{N}_i$, the multi-head attention weight in expert $m$ at layer $l$ is:
 
-$$\alpha_{ij}^{(l, h)} = \frac{\exp\left( \operatorname{LeakyReLU}\left( \mathbf{a}_h^T [\mathbf{W}_h \mathbf{h}_i^{(l)} \,\|\, \mathbf{W}_h \mathbf{h}_j^{(l)}] \right) \right)}{\sum_{u \in \mathcal{N}_i \cup \{i\}} \exp\left( \operatorname{LeakyReLU}\left( \mathbf{a}_h^T [\mathbf{W}_h \mathbf{h}_i^{(l)} \,\|\, \mathbf{W}_h \mathbf{h}_u^{(l)}] \right) \right)}$$
+$$\alpha_{ij}^{(l, h)} = \frac{\exp\left( \text{LeakyReLU}\left( \mathbf{a}_h^T [\mathbf{W}_h \mathbf{h}_i^{(l)} \,\|\, \mathbf{W}_h \mathbf{h}_j^{(l)}] \right) \right)}{\sum_{u \in \mathcal{N}_i \cup \{i\}} \exp\left( \text{LeakyReLU}\left( \mathbf{a}_h^T [\mathbf{W}_h \mathbf{h}_i^{(l)} \,\|\, \mathbf{W}_h \mathbf{h}_u^{(l)}] \right) \right)}$$
 
 $$\mathbf{h}_i^{(l+1)} = \bigoplus_{h=1}^H \sigma\left( \sum_{j \in \mathcal{N}_i \cup \{i\}} \alpha_{ij}^{(l, h)} \mathbf{W}_h \mathbf{h}_j^{(l)} \right)$$
 
 #### 2. Adaptive Gating / Routing Network:
 Given input seed representation $\hat{\mathbf{x}}$, the gating network computes soft allocation weights over all $M$ experts:
 
-$$\mathbf{g}(\hat{\mathbf{x}}) = \operatorname{Softmax}\left( \mathbf{W}_{g2} \operatorname{ReLU}(\mathbf{W}_{g1} \hat{\mathbf{x}} + \mathbf{b}_{g1}) + \mathbf{b}_{g2} \right) \in \Delta^{M-1}$$
+$$\mathbf{g}(\hat{\mathbf{x}}) = \text{Softmax}\left( \mathbf{W}_{g2} \text{ReLU}(\mathbf{W}_{g1} \hat{\mathbf{x}} + \mathbf{b}_{g1}) + \mathbf{b}_{g2} \right) \in \Delta^{M-1}$$
 
 satisfying $\sum_{m=1}^M g_m(\hat{\mathbf{x}}) = 1$ and $g_m(\hat{\mathbf{x}}) \ge 0$.
 
@@ -208,7 +208,7 @@ $$\hat{\mathbf{y}} = \sum_{m=1}^M g_m(\hat{\mathbf{x}}) \cdot E_m\left(\hat{\mat
 
 The predicted total influence spread is the sum of node activation probabilities:
 
-$$\hat{\sigma}(\hat{\mathbf{x}}) = \sum_{i=1}^N \hat{y}_i = \mathbf{1}^T \operatorname{PMoE}(\hat{\mathbf{x}})$$
+$$\hat{\sigma}(\hat{\mathbf{x}}) = \sum_{i=1}^N \hat{y}_i = \mathbf{1}^T \text{PMoE}(\hat{\mathbf{x}})$$
 
 #### 4. PMoE Training Objective:
 Trained via Mean Squared Error (MSE) against the ground-truth MC spread probability vector $\mathbf{y} \in [0, 1]^N$:
@@ -222,7 +222,7 @@ $$\mathcal{L}_{\text{PMoE}}(\psi) = \frac{1}{B \cdot N} \sum_{b=1}^B \sum_{i=1}^
 REM trains Seed2Vec and PMoE without needing massive offline pre-labeled datasets through self-exploration:
 
 1. **Latent Space Exploration:** Sample stochastic latent candidates $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_d)$.
-2. **Decoding & Discretization:** Generate seed candidates $\tilde{\mathbf{x}} = \operatorname{Dec}_\theta(\mathbf{z})$, discretized to top-$k$ binary sets $\mathcal{S}$.
+2. **Decoding & Discretization:** Generate seed candidates $\tilde{\mathbf{x}} = \text{Dec}_\theta(\mathbf{z})$, discretized to top-$k$ binary sets $\mathcal{S}$.
 3. **Diffusion Simulation:** Execute Monte Carlo simulations on multiplex graph $\mathcal{G}$ using $\mathcal{S}$ to observe infection vector $\mathbf{y}$.
 4. **Buffer Augmentation:** Append $(\mathbf{x}, \mathbf{y})$ to training pool $\mathcal{D}$.
 5. **Joint Parameter Updates:** Alternate gradient steps on $\mathcal{L}_{\text{Seed2Vec}}$ and $\mathcal{L}_{\text{PMoE}}$.
@@ -234,10 +234,10 @@ REM trains Seed2Vec and PMoE without needing massive offline pre-labeled dataset
 To find the optimal seed set $\mathcal{S}^*$ for a budget $k$, REM optimizes directly in the continuous latent space $\mathbf{z} \in \mathbb{R}^d$:
 
 #### 1. Continuous Latent Objective Function:
-$$\max_{\mathbf{z} \in \mathbb{R}^d} \mathcal{J}(\mathbf{z}) = \hat{\sigma}\left(\operatorname{Dec}_\theta(\mathbf{z})\right) - \lambda_{\text{budget}} \cdot \mathcal{L}_{\text{budget}}\left(\operatorname{Dec}_\theta(\mathbf{z}), k\right) - \gamma \cdot \mathcal{H}\left(\operatorname{Dec}_\theta(\mathbf{z})\right)$$
+$$\max_{\mathbf{z} \in \mathbb{R}^d} \mathcal{J}(\mathbf{z}) = \hat{\sigma}\left(\text{Dec}_\theta(\mathbf{z})\right) - \lambda_{\text{budget}} \cdot \mathcal{L}_{\text{budget}}\left(\text{Dec}_\theta(\mathbf{z}), k\right) - \gamma \cdot \mathcal{H}\left(\text{Dec}_\theta(\mathbf{z})\right)$$
 
 where:
-- **Surrogate Spread:** $\hat{\sigma}(\operatorname{Dec}_\theta(\mathbf{z})) = \sum_{i=1}^N \operatorname{PMoE}(\operatorname{Dec}_\theta(\mathbf{z}))_i$
+- **Surrogate Spread:** $\hat{\sigma}(\text{Dec}_\theta(\mathbf{z})) = \sum_{i=1}^N \text{PMoE}(\text{Dec}_\theta(\mathbf{z}))_i$
 - **Budget Constraint Penalty:** Forces the decoded seed sum to match budget $k$:
 
 $$\mathcal{L}_{\text{budget}}(\hat{\mathbf{x}}, k) = \left( \frac{\sum_{i=1}^N \hat{x}_i - k}{\max(1, k)} \right)^2$$
@@ -256,9 +256,9 @@ $$\eta_t = \eta_{\min} + \frac{1}{2}\left(\eta_{\max} - \eta_{\min}\right)\left(
 #### 3. Top-$k$ Projection Operator:
 Decodes the optimal continuous representation $\mathbf{z}^*$ into discrete seed nodes:
 
-$$\hat{\mathbf{x}}^* = \operatorname{Dec}_\theta(\mathbf{z}^*)$$
+$$\hat{\mathbf{x}}^* = \text{Dec}_\theta(\mathbf{z}^*)$$
 
-$$\mathcal{S}_{\text{init}} = \operatorname{argtopk}_{i \in \mathcal{V}}\left( \hat{x}_i^*, \; k \right)$$
+$$\mathcal{S}_{\text{init}} = \text{argtopk}_{i \in \mathcal{V}}\left( \hat{x}_i^*, \; k \right)$$
 
 #### 4. Boundary Local Search Refinement:
 To eliminate boundary relaxation errors, seeds with weak aggregate degree are iteratively replaced by high-degree 1-hop multiplex neighbors:
@@ -279,9 +279,9 @@ To ensure rigorous validation and exact comparison with the original AAAI 2025 p
 | **Standard Deviation** $s$ | $s = \sqrt{\frac{1}{R-1} \sum_{r=1}^R \left(\left\|\mathcal{I}_r(\mathcal{S})\right\| - \hat{\sigma}(\mathcal{S})\right)^2}$ | Spread variance across cascade realizations. |
 | **Standard Error (SE)** | $\text{SE} = \frac{s}{\sqrt{R}}$ | Standard error of the mean influence estimator. |
 | **Coefficient of Variation (CV %)** | $\text{CV} = \frac{s}{\hat{\sigma}(\mathcal{S})} \times 100\%$ | Propagation stability index (lower CV = higher diffusion robustness). |
-| **Spread Efficiency** | $\operatorname{Eff}(\mathcal{S}) = \frac{\hat{\sigma}(\mathcal{S})}{k}$ | Marginal influence spread per seed node invested. |
+| **Spread Efficiency** | $\text{Eff}(\mathcal{S}) = \frac{\hat{\sigma}(\mathcal{S})}{k}$ | Marginal influence spread per seed node invested. |
 | **Gain vs Random (%)** | $\Delta_{\text{Rand}} = \frac{\hat{\sigma}(\mathcal{S}_{\text{REM}}) - \hat{\sigma}(\mathcal{S}_{\text{Rand}})}{\hat{\sigma}(\mathcal{S}_{\text{Rand}})} \times 100\%$ | Relative improvement of REM over stochastic seed selection. |
-| **Normalized Spread Ratio (NSR %)** | $\operatorname{NSR} = \frac{\hat{\sigma}(\mathcal{S}_{\text{REM}})}{\sigma_{\text{Paper}}} \times 100\%$ | Performance relative to original paper benchmark ($\ge 100\%$ indicates reproduction/outperformance). |
+| **Normalized Spread Ratio (NSR %)** | $\text{NSR} = \frac{\hat{\sigma}(\mathcal{S}_{\text{REM}})}{\sigma_{\text{Paper}}} \times 100\%$ | Performance relative to original paper benchmark ($\ge 100\%$ indicates reproduction/outperformance). |
 | **Jaccard Similarity with Degree** | $J(\mathcal{S}_{\text{REM}}, \mathcal{S}_{\text{Deg}}) = \frac{|\mathcal{S}_{\text{REM}} \cap \mathcal{S}_{\text{Deg}}|}{|\mathcal{S}_{\text{REM}} \cup \mathcal{S}_{\text{Deg}}|}$ | Structural diversity index. Low $J$ proves REM discovers non-trivial seeds beyond simple degree hubs. |
 
 ---
