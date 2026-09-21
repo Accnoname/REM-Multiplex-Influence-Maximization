@@ -302,11 +302,41 @@ Experiments conducted on the **Celegans Genetic Multiplex** network ($N = 3{,}87
 
 *All results verified via independent Monte Carlo simulations with 50 runs. Raw data and charts are stored in `results/`.*
 
-### 4.2 Key Empirical Findings
+### 4.2 Sanremo 2016 Social Multiplex Network ($N = 56{,}562$)
 
-1. **Substantial Outperformance of Paper Baseline:** At $k=50$, our model achieves **$811.80 \pm 450.44$** infected nodes, surpassing the paper's reported reference benchmark of $\sim 426.7$ nodes (**NSR: 190.3%**).
-2. **Remarkable Structural Diversity ($J \le 0.042$):** The Jaccard similarity between REM seeds and simple high-degree hubs is only **$0.042$** (only 4 seeds out of 50 overlap). This confirms REM avoids the classic **clustering redundancy trap** where high-degree hubs have overlapping coverage, instead finding strategically distributed multi-layer bridge nodes.
-3. **Peak Efficiency at $k=20$:** Spread efficiency reaches a maximum of **$41.84$ nodes per seed** at $k=20$, delivering the optimal cost-benefit threshold for viral cascade campaigns.
+Evaluated on the real-world **Sanremo 2016 Social Multiplex** dataset ($N = 56{,}562$ nodes, $M = 296{,}362$ multiplex directed edges across 2 interaction layers: Retweets and Mentions):
+
+#### Training Dynamics on Standard Hardware (CPU Only)
+Trained on standard consumer CPU using **Micro-batching** ($B = 2$) and pruned capacity ($d = 32$, $E = 4$):
+- **Execution Time**: ~4 minutes for 4 full epochs (~1 min/epoch, peak RAM $\le 75\text{ MB}$, zero OOM).
+- **Loss Convergence**: VAE reconstruction loss dropped $>99\%$ from **$10{,}958.90$** (Epoch 1) to **$92.59$** (Epoch 4).
+
+#### Empirical Cascade Spread ($k = 20$)
+
+| Method | Mean Spread ($\sigma$) | Std Deviation ($\pm \text{Std}$) | Gain vs Random | Gain vs Degree | Jaccard Overlap ($J$) |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| **Random Baseline** | $25.65$ | $\pm 7.07$ | $0.0\%$ | - | - |
+| **Degree Centrality** | $51.90$ | $\pm 45.32$ | $+102.3\%$ | $0.0\%$ | - |
+| **REM (Ours)** | $\mathbf{98.50}$ | $\pm 115.06$ | $\mathbf{+284.0\%}$ | $\mathbf{+89.8\%}$ | $\mathbf{0.0811}$ (3/20 overlap) |
+
+*Evaluated via independent Monte Carlo simulations under the Multiplex Weighted Cascade model. Raw data stored in `results/benchmark_sanremo.csv`.*
+
+---
+
+### 4.3 NBA Finals 2015 Massive Network ($N = 747{,}937$)
+
+Evaluated scalability on the large-scale **NBA Finals 2015** multiplex network ($N = 747{,}937$ nodes, $M = 3{,}016{,}078$ edges across 3 layers):
+- **Vectorized Graph Loading**: Direct tensor extraction loads 748k nodes in **$6.9\text{s}$** (reduced from $37.5\text{s}$).
+- **High-Speed Simulation**: Multiplex in-degree caching reduces single-trial simulation time on 748k nodes to **$0.01\text{s}$**.
+- **Metrics**: Detailed data recorded in `results/benchmark_nba_finals.csv`.
+
+---
+
+### 4.4 Key Empirical Takeaways
+
+1. **Consistent Multi-Hop Penetration:** Across Celegans ($N = 3{,}879$) and Sanremo ($N = 56{,}562$), REM consistently outperforms random baselines by **+59% to +284%** and degree heuristics by up to **+89.8%**.
+2. **Avoidance of Redundant Clustering:** The Jaccard similarity with degree hubs remains uniformly low ($J \le 0.081$), proving that REM selects topologically diverse bridge nodes across multiplex layers rather than clustering redundant hubs.
+3. **Feasibility on Consumer Hardware:** Through memory-efficient micro-batching and in-degree caching, graph neural network training on 50k+ nodes runs cleanly on a basic PC CPU without requiring specialized cloud GPU infrastructure.
 
 ---
 
@@ -314,26 +344,33 @@ Experiments conducted on the **Celegans Genetic Multiplex** network ($N = 3{,}87
 
 ```
 REM-Multiplex-Influence-Maximization/
-├── checkpoints/                      # Trained model weights
-│   ├── seed2vec.pth                  # Pretrained Seed2Vec VAE
-│   └── pmoe.pth                      # Pretrained PMoE model
+├── checkpoints/                      # Trained model weights (dataset-specific)
+│   ├── seed2vec.pth                  # Celegans Seed2Vec VAE
+│   ├── pmoe.pth                      # Celegans PMoE model
+│   ├── seed2vec_Sanremo.pth          # Sanremo 2016 Seed2Vec VAE
+│   └── pmoe_Sanremo.pth              # Sanremo 2016 PMoE model
 ├── configs/
 │   ├── hyperparams.yaml              # Celegans configuration
+│   ├── sanremo.yaml                  # Sanremo 2016 configuration
+│   ├── nba_finals.yaml               # NBA Finals 2015 configuration
 │   └── paris_attack.yaml             # Paris Attack 2015 configuration
 ├── data/
 │   ├── raw/                          # Raw multiplex graph files (.edges, .txt)
 │   │   ├── celegans_genetic_*.edges
 │   │   └── nba_finals/               # Extracted NBA Finals 2015 dataset
 │   └── processed/                    # Preprocessed binary cache & .SG samples
-├── results/                          # Dedicated results artifact folder
-│   ├── benchmark_Celegans.csv        # Detailed numerical benchmark table
-│   ├── metrics_comparison_Celegans.csv # Side-by-side metric comparison
-│   └── chart_Celegans.png            # 2-panel publication-ready comparison plot
+├── results/                          # Dedicated benchmark artifact folder
+│   ├── benchmark_Celegans.csv        # Celegans multi-budget benchmark table
+│   ├── metrics_comparison_Celegans.csv # Celegans side-by-side metric comparison
+│   ├── chart_Celegans.png            # 2-panel publication-ready comparison plot
+│   ├── benchmark_sanremo.csv         # Sanremo 2016 benchmark results
+│   └── benchmark_nba_finals.csv      # NBA Finals 2015 benchmark results
 ├── scripts/
 │   ├── preprocess.py                 # Graph construction & initial sample generation
 │   ├── augment.py                    # Algorithm 1: Self-training sample augmentation
 │   ├── train.py                      # Joint training of Seed2Vec and PMoE
 │   ├── infer.py                      # Algorithm 2: Robust latent gradient ascent
+│   ├── verify_seeds.py               # Independent non-neural Monte Carlo verification
 │   ├── benchmark.py                  # Multi-metric evaluation & baseline comparisons
 │   └── download_paris_attack.py      # Dataset acquisition utility
 └── src/
@@ -343,7 +380,7 @@ REM-Multiplex-Influence-Maximization/
     │   └── simulation.py             # Vectorized Multiplex Weighted Cascade IC engine
     └── models/
         ├── seed2vec.py               # VAE with reparameterization & BCE+KL loss
-        ├── pmoe.py                   # Propagation Mixture of Experts (8 GAT experts)
+        ├── pmoe.py                   # Propagation Mixture of Experts (GAT experts)
         └── experts.py                # Multi-hop GATExpert implementation
 ```
 
@@ -371,32 +408,39 @@ python scripts/preprocess.py
 # 2. Augment training samples via diffusion simulation (Algorithm 1)
 python scripts/augment.py
 
-# 3. Train Seed2Vec VAE and PMoE models
+# 3. Train Seed2Vec VAE and PMoE models (with live per-epoch progress)
 python scripts/train.py
 
 # 4. Infer optimal seed set for budget k=50 (Algorithm 2)
-python scripts/infer.py
+python scripts/infer.py --budget 50
 
 # 5. Run full benchmark with advanced metrics & baseline comparisons
 python scripts/benchmark.py --mc-runs 50
 ```
 
-### 6.3 Benchmark Options
+### 6.3 Multi-Dataset & Scalable Execution (Sanremo 2016 & NBA Finals)
 
-The benchmarking script supports multiple configurations:
+All scripts support the `--config` parameter to target different networks seamlessly:
 
 ```bash
-# Evaluate existing cached REM seeds with 100 Monte Carlo runs
-python scripts/benchmark.py --mc-runs 100
+# Train on Sanremo 2016 (56,562 nodes) on standard PC CPU
+python scripts/train.py --config configs/sanremo.yaml
 
-# Re-run latent space gradient ascent from scratch for all budgets
-python scripts/benchmark.py --recompute-rem --mc-runs 100
+# Infer seeds on Sanremo 2016 for budget k=20
+python scripts/infer.py --config configs/sanremo.yaml --budget 20
 
-# Run benchmark on an alternate dataset configuration
-python scripts/benchmark.py --config configs/paris_attack.yaml
+# Run independent non-neural Monte Carlo verification
+python scripts/verify_seeds.py --config configs/sanremo.yaml --budget 20 --mc-runs 50
+
+# Benchmark NBA Finals 2015 (747,937 nodes)
+python scripts/benchmark.py --config configs/nba_finals.yaml
 ```
 
-All benchmark CSVs and high-resolution comparison charts are automatically saved to `results/`.
+### 6.4 Low-Resource / Consumer PC Optimization Note
+
+- **Micro-Batching ($B = 2$)**: Ensures peak PyTorch Geometric batch allocation remains $\le 75\text{ MB}$, preventing `DefaultCPUAllocator` out-of-memory errors on standard laptops/PCs.
+- **In-Degree Caching**: Precomputes node in-degrees across layers, accelerating Monte Carlo simulations up to 100x ($0.01\text{s}$ per trial on 748k nodes).
+- **Epoch Progress Logging**: Full `tqdm` and per-epoch loss reporting identical to cloud notebook environments.
 
 ---
 
