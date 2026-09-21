@@ -14,8 +14,10 @@ data/raw/nba_finals/
 data/raw/social_bursts/
 data/raw/rem_original/
 data/raw/paris_attack/
+data/raw/sanremo/
 data/processed/nba_finals/
 data/processed/paris_attack/
+data/processed/sanremo/
 
 # 4. IDE Settings
 .vscode/

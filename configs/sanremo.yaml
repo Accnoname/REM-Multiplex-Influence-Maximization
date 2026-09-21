@@ -1,0 +1,36 @@
+project:
+  name: "REM_Sanremo"
+  seed: 42
+  device: "cpu"
+
+dataset:
+  name: "Sanremo"
+  raw_dir: "data/raw/sanremo/Sanremo2016_final_Multiplex_Social/Dataset"
+  processed_dir: "data/processed/sanremo"
+  edges_file: "Sanremo2016_final_multiplex.edges"
+  nodes_file: "Sanremo2016_final_nodes.txt"
+  
+  num_samples_train: 40
+  seed_set_size: 50
+  mc_simulations: 10
+  model: "WC"
+
+model:
+  latent_dim: 32
+  hidden_dim: 32
+  num_experts: 4
+  dropout: 0.2
+  entropy_coeff: 0.1
+
+train:
+  batch_size: 2
+  lr_vae: 0.003
+  lr_pmoe: 0.001
+  kl_weight: 0.55
+  epochs: 4
+  exploration_steps: 20
+
+inference:
+  steps: 40
+  lr_z: 0.2
+  budget_penalty: 0.5
