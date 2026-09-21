@@ -1,22 +1,22 @@
-# 1. Rác Python (Không bao giờ đẩy lên)
+# 1. Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
+*.DS_Store
 
-# 2. Môi trường ảo (QUAN TRỌNG: Đẩy cái này lên là hỏng repo)
+# 2. Virtual environment
 venv/
 env/
 .env
 
-# 3. Dữ liệu & Model (GitHub chặn file > 100MB)
-# Nếu file .pkl hoặc .pth của bạn < 100MB thì có thể bỏ comment dòng dưới
-# data/processed/multiplex_graph.pkl
-# checkpoints/*.pth
+# 3. Large external datasets (>100MB / raw zips)
+data/raw/nba_finals/
+data/raw/social_bursts/
+data/raw/rem_original/
+data/raw/paris_attack/
+data/processed/nba_finals/
+data/processed/paris_attack/
 
-# 4. Các file kết quả chạy (Tùy chọn: Có thể giữ lại để show kết quả)
-# benchmark_results_rem.csv
-# rem_performance_chart.png
-
-# 5. IDE Settings
+# 4. IDE Settings
 .vscode/
 .idea/
