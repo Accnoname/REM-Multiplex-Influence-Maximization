@@ -4,161 +4,83 @@ import yaml
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch_geometric.data import Data, Batch
 from tqdm import tqdm
-from torch_geometric.data import Data, Batch # <--- IMPORT MỚI
 
-# Thêm thư mục gốc vào path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.data.dataset_loader import REMDataset
+import logging
+from src.data.dataset import REMDataset, load_graph
 from src.models.seed2vec import Seed2Vec
 from src.models.pmoe import PMoE
-from src.utils.logger import setup_logger
 
-logger = setup_logger() 
+log = logging.getLogger("REM")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
 
 def train():
-    # 1. Load Config
-    config_path = "configs/hyperparams.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open("configs/hyperparams.yaml", "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
-    device = torch.device(cfg['project']['device'] if torch.cuda.is_available() else "cpu")
-    logger.info(f"Running on device: {device}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    log.info(f"Device: {device}")
 
-    # 2. Load Data & Graph Structure
-    data_path = os.path.join(cfg['dataset']['processed_dir'], "augmented_data.SG")
-    graph_path = os.path.join(cfg['dataset']['processed_dir'], "multiplex_graph.pkl")
-    
-    import pickle
-    with open(graph_path, 'rb') as f:
-        graph_data = pickle.load(f)
-    
-    from torch_geometric.utils import from_networkx
-    
-    # Chuẩn bị cấu trúc đồ thị (Edge Index) dùng chung cho cả batch
-    # Giả sử dùng layer 1 (index 1) làm cấu trúc lan truyền chính
-    first_layer_graph = graph_data['graphs'][1] 
-    pyg_graph = from_networkx(first_layer_graph)
-    main_edge_index = pyg_graph.edge_index.to(device)
+    num_nodes, edge_index, _ = load_graph(cfg, device)
+    log.info(f"Graph: {num_nodes} nodes, {edge_index.size(1)} unified edges")
 
+    data_path = os.path.join(cfg["dataset"]["processed_dir"], "augmented_data.SG")
     dataset = REMDataset(data_path)
-    dataloader = DataLoader(dataset, batch_size=cfg['train']['batch_size'], shuffle=True)
-    
-    # 3. Initialize Models
-    num_nodes = graph_data['num_nodes']
-    
-    vae = Seed2Vec(
-        num_nodes=num_nodes,
-        latent_dim=cfg['model']['latent_dim'],
-        hidden_dim=cfg['model']['hidden_dim'],
-        dropout=cfg['model']['dropout']
-    ).to(device)
-    
-    pmoe = PMoE(
-        num_nodes=num_nodes,
-        num_experts=cfg['model']['num_experts'],
-        hidden_dim=cfg['model']['hidden_dim']
-    ).to(device)
+    loader = DataLoader(dataset, batch_size=cfg["train"]["batch_size"], shuffle=True)
 
-    # 4. Optimizers
-    opt_vae = optim.Adam(vae.parameters(), lr=cfg['train']['lr_vae'])
-    opt_pmoe = optim.Adam(pmoe.parameters(), lr=cfg['train']['lr_pmoe'])
+    vae = Seed2Vec(num_nodes, cfg["model"]["latent_dim"], cfg["model"]["hidden_dim"]).to(device)
+    pmoe = PMoE(num_nodes, cfg["model"]["num_experts"], hidden_dim=cfg["model"]["hidden_dim"]).to(device)
 
-    # 5. Training Loop
-    epochs = cfg['train']['epochs']
-    kl_weight = cfg['train']['kl_weight']
-    
-    logger.info("Start Training...")
-    
+    opt_vae = optim.Adam(vae.parameters(), lr=cfg["train"]["lr_vae"])
+    opt_pmoe = optim.Adam(pmoe.parameters(), lr=cfg["train"]["lr_pmoe"])
+    kl_w = cfg["train"]["kl_weight"]
+    epochs = cfg["train"]["epochs"]
+
     for epoch in range(epochs):
-        vae.train()
-        pmoe.train()
-        
-        total_vae_loss = 0
-        total_pmoe_loss = 0
-        
-        progress_bar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}")
-        
-        for batch_x, batch_y in progress_bar:
-            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-            
-            # --- Train Seed2Vec (VAE) ---
+        vae.train(); pmoe.train()
+        total_vae = total_pmoe = 0.0
+
+        for x, y in tqdm(loader, desc=f"Epoch {epoch+1}/{epochs}"):
+            x, y = x.to(device), y.to(device)
+
+            # VAE step
             opt_vae.zero_grad()
-            recon_x, mu, logvar = vae(batch_x)
-            
-            mse_loss = torch.nn.functional.mse_loss(recon_x, batch_x, reduction='sum')
-            kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-            vae_loss = mse_loss + kl_weight * kld_loss
-            
+            recon, mu, logvar = vae(x)
+            mse = torch.nn.functional.mse_loss(recon, x, reduction="sum")
+            kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+            vae_loss = mse + kl_w * kld
             vae_loss.backward()
             opt_vae.step()
-            
-            # --- Train PMoE ---
-            # [ENGINEER FIX]: Chuyển đổi batch 3D sang PyG Batch Object (2D disjoint union)
-            # để tránh lỗi "Static graphs not supported" của GATConv
-            
-            data_list = []
-            curr_batch_size = batch_x.size(0)
-            
-            for i in range(curr_batch_size):
-                # Lấy vector features của graph thứ i
-                x_i = batch_x[i].float() # Đảm bảo là float
-                
-                # [QUAN TRỌNG]: Nếu x_i là 1D [Num_Nodes], phải unsqueeze thành [Num_Nodes, 1]
-                if x_i.dim() == 1:
-                    x_i = x_i.unsqueeze(-1)
-                
-                # Tạo Data object.
-                # Lưu ý: edge_index dùng chung, không cần .clone() nếu chỉ đọc
-                data = Data(x=x_i, edge_index=main_edge_index)
-                data_list.append(data)
-            
-            # Tạo Batch lớn và đưa lên device
-            batch_input = Batch.from_data_list(data_list).to(device)
-            
+
+            # PMoE step — build PyG batch from current x
             opt_pmoe.zero_grad()
-            
-            # PMoE forward với Batch object
-            # Output pred_y shape: [Batch_Size, Num_Nodes, 1]
-            pred_y_map = pmoe(batch_input) 
-            
-            # Tính tổng influence spread dự đoán (Sum over nodes)
-            # Output: [Batch_Size]
-            pred_spread = pred_y_map.sum(dim=1).squeeze()
-            
-            # --- [ENGINEER FIX] ---
-            # batch_y đang là [Batch, Nodes] (chi tiết từng node), cần sum lại thành [Batch] (tổng số node)
-            # để khớp với pred_spread (tổng độ lan truyền dự đoán).
-            if batch_y.dim() > 1:
-                target_spread = batch_y.sum(dim=1)
-            else:
-                target_spread = batch_y
-            
-            # Đảm bảo shape khớp nhau 100% trước khi đưa vào Loss
-            # Nếu pred_spread là [32], target_spread cũng phải là [32]
-            pmoe_loss = torch.nn.functional.mse_loss(pred_spread, target_spread.float())
-            
+            batch_data = Batch.from_data_list([
+                Data(x=x[i].unsqueeze(-1), edge_index=edge_index)
+                for i in range(x.size(0))
+            ]).to(device)
+            pred = pmoe(batch_data).sum(dim=1).squeeze()
+            target = y.sum(dim=1) if y.dim() > 1 else y
+            pmoe_loss = torch.nn.functional.mse_loss(pred, target.float())
             pmoe_loss.backward()
             opt_pmoe.step()
-            
-            total_vae_loss += vae_loss.item()
-            total_pmoe_loss += pmoe_loss.item()
-            
-            progress_bar.set_postfix({
-                "VAE": f"{vae_loss.item()/len(batch_x):.2f}", 
-                "PMoE": f"{pmoe_loss.item():.2f}"
-            })
 
-        avg_vae = total_vae_loss / len(dataset)
-        avg_pmoe = total_pmoe_loss / len(dataloader)
-        logger.info(f"Epoch {epoch+1} Summary | VAE Loss: {avg_vae:.4f} | PMoE Loss: {avg_pmoe:.4f}")
+            total_vae += vae_loss.item()
+            total_pmoe += pmoe_loss.item()
 
-    # 6. Save Models
-    os.makedirs("checkpoints", exist_ok=True)
-    torch.save(vae.state_dict(), "checkpoints/seed2vec.pth")
-    torch.save(pmoe.state_dict(), "checkpoints/pmoe.pth")
-    logger.info("Training Finished! Models saved to 'checkpoints/'")
+        log.info(f"Epoch {epoch+1} | VAE: {total_vae/len(dataset):.4f} | PMoE: {total_pmoe/len(loader):.4f}")
+
+        if (epoch + 1) % 2 == 0 or (epoch + 1) == epochs:
+            os.makedirs("checkpoints", exist_ok=True)
+            torch.save(vae.state_dict(), "checkpoints/seed2vec.pth")
+            torch.save(pmoe.state_dict(), "checkpoints/pmoe.pth")
+            log.info(f"Checkpoint saved (epoch {epoch+1})")
+
+    log.info("Training done.")
+
 
 if __name__ == "__main__":
     train()
